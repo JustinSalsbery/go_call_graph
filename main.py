@@ -17,8 +17,9 @@ def main() -> None:
         try:
 
             with open(path, "r") as file:
+                tokenizer = Tokenizer(file)
                 while True:
-                    token = get_token(file)
+                    token = tokenizer.get_token()
                     if token.type == TokenType.EOF:
                         break
 
@@ -46,148 +47,154 @@ class TokenType(Enum):  # Minimal set.
 class Token:
     type: TokenType
     body: str
+    line_number: int
 
 
-def get_token(file: TextIOWrapper) -> Token:
-    peak = peak_next(file)
+class Tokenizer():
+    def __init__(self, file: TextIOWrapper):
+        self.line_number = 1
+        self.file = file
 
-    while peak.isspace():
-        file.read(1)  # Remove whitespace.
-        peak = peak_next(file)
+    def get_token(self) -> Token:
+        peak = self.peak_next()
 
-    if is_word(peak):
-        string = read_word(file)
-        if is_keyword(string):
-            return Token(TokenType.KEYWORD, string)
-        return Token(TokenType.WORD, string)
-    elif peak.isdigit():
-        string = read_number(file)
-        return Token(TokenType.NUMBER, string)
-    elif peak == '(':
-        char = file.read(1)
-        return Token(TokenType.LPAREN, char)
-    elif peak == "'":
-        file.read(1)  # Remove first quote.
-        string, _ = read_until(file, "'")
-        return Token(TokenType.QUOTE, string)
-    elif peak == '"':
-        file.read(1)  # Remove first quote.
-        string, _ = read_until(file, '"')
-        return Token(TokenType.QUOTE, string)
-    elif peak == '`':
-        file.read(1)  # Remove first quote.
-        string, _ = read_until(file, '`')
-        return Token(TokenType.QUOTE, string)
-    elif peak == "/" and peak_next(file, 2) == "//":
-        read_until(file, "\n")
-        return get_token(file)  # Return next token.
-    elif peak == "/" and peak_next(file, 2) == "/*":
-        read_until(file, "*/")
-        return get_token(file)  # Return next token.
-    elif is_symbol(peak):  # Must be after comment handling!
-        string = read_symbol(file)
-        return Token(TokenType.SYMBOL, string)
-    elif peak == "":
-        return Token(TokenType.EOF, "")
+        while peak.isspace():  # Remove whitespace.
+            if peak == "\n":
+                self.line_number += 1
 
-    print(f"Error: Unexpected character {peak} in {file}.", file=stderr)
-    exit(EXIT_FAILURE)
+            self.file.read(1)
+            peak = self.peak_next()
 
+        if self.is_word(peak):
+            string = self.read_word()
+            if self.is_keyword(string):
+                return Token(TokenType.KEYWORD, string, self.line_number)
+            return Token(TokenType.WORD, string, self.line_number)
+        elif peak.isdigit():
+            string = self.read_number()
+            return Token(TokenType.NUMBER, string, self.line_number)
+        elif peak == '(':
+            char = self.file.read(1)
+            return Token(TokenType.LPAREN, char, self.line_number)
+        elif peak == "'":
+            self.file.read(1)  # Remove first quote.
+            string, _ = self.read_until("'")
+            return Token(TokenType.QUOTE, string, self.line_number)
+        elif peak == '"':
+            self.file.read(1)  # Remove first quote.
+            string, _ = self.read_until('"')
+            return Token(TokenType.QUOTE, string, self.line_number)
+        elif peak == '`':
+            self.file.read(1)  # Remove first quote.
+            string, _ = self.read_until('`')
+            return Token(TokenType.QUOTE, string, self.line_number)
+        elif peak == "/" and self.peak_next(2) == "//":
+            self.read_until("\n")
+            return self.get_token()  # Return next token.
+        elif peak == "/" and self.peak_next(2) == "/*":
+            self.read_until("*/")
+            return self.get_token()  # Return next token.
+        elif self.is_symbol(peak):  # Must be after comment handling!
+            string = self.read_symbol()
+            return Token(TokenType.SYMBOL, string, self.line_number)
+        elif peak == "":
+            return Token(TokenType.EOF, "", self.line_number)
 
-# Returns an empty string, "", if the end of the file is reached.
-def peak_next(file: TextIOWrapper, count: int = 1) -> str:
-    position = file.tell()
-    string = file.read(count)
+        print(f"Error: Unexpected character {peak} in {self.file}.",
+              file=stderr)
+        exit(EXIT_FAILURE)
 
-    file.seek(position)
-    return string
+    # Returns an empty string, "", if the end of the file is reached.
+    def peak_next(self, count: int = 1) -> str:
+        position = self.file.tell()
+        string = self.file.read(count)
 
+        self.file.seek(position)
+        return string
 
-# Returns (read, error).
-def read_until(file: TextIOWrapper, end: str) -> tuple[str, bool]:
-    escapes = 0
-    escapes_in_ending = end.count("\\")
+    # Returns (read, error).
+    def read_until(self, end: str) -> tuple[str, bool]:
+        escapes = 0
+        escapes_in_ending = end.count("\\")
 
-    read = ""
-    while True:
-        char = file.read(1)
-        if char == "":
-            break
+        string = ""
+        while True:
+            char = self.file.read(1)
+            if char == "":
+                break
+            if char == "\n":
+                self.line_number += 1
 
-        read += char
+            string += char
 
-        if char == "\\":
-            escapes += 1
+            if char == "\\":
+                escapes += 1  # TODO: Clean and verify.
 
-        # Repeatedly calling endswith() is inefficient. A deterministic finite automaton would
-        # be superior.
+            # Repeatedly calling endswith() is inefficient. A deterministic finite automaton would
+            # be superior.
 
-        if read.endswith(end) and (escapes - escapes_in_ending) % 2 == 0:
-            return (read, False)
+            if string.endswith(end) and (escapes - escapes_in_ending) % 2 == 0:
+                return (string, False)
 
-        if char != "\\":
-            escapes = 0  # Reset
+            if char != "\\":
+                escapes = 0  # Reset
 
-    return (read, True)
+        return (string, True)
 
+    def read_word(self) -> str:
+        string = ""
 
-def read_word(file: TextIOWrapper) -> str:
-    string = ""
+        char = self.peak_next()
+        while self.is_word(char) or char.isdigit():
+            string += self.file.read(1)
+            char = self.peak_next()
 
-    char = peak_next(file)
-    while is_word(char) or char.isdigit():
-        string += file.read(1)
-        char = peak_next(file)
+        return string
 
-    return string
+    def read_number(self) -> str:
+        string = ""
 
+        char = self.peak_next()
+        while char.isdigit() or char == ".":
+            string += self.file.read(1)
+            char = self.peak_next()
 
-def read_number(file: TextIOWrapper) -> str:
-    string = ""
+        return string
 
-    while peak_next(file).isdigit():
-        string += file.read(1)
+    def read_symbol(self) -> str:
+        string = ""
 
-    return string
+        while self.is_symbol(self.peak_next()):
+            string += self.file.read(1)
 
+        return string
 
-def read_symbol(file: TextIOWrapper) -> str:
-    string = ""
+    def is_word(self, char: str) -> bool:
+        return char.isalpha() or char == "_"
 
-    while is_symbol(peak_next(file)):
-        string += file.read(1)
+    def is_keyword(self, string: str) -> bool:
+        if string == "break" or string == "default" or string == "func" \
+                or string == "case" or string == "defer" or string == "go" \
+                or string == "map" or string == "struct" or string == "chan" \
+                or string == "else" or string == "goto" or string == "package" \
+                or string == "switch" or string == "const" or string == "fallthrough" \
+                or string == "if" or string == "range" or string == "type" \
+                or string == "continue" or string == "for" or string == "import" \
+                or string == "return" or string == "var":  # Complete.
+            return True
+        return False
 
-    return string
-
-
-def is_word(char: str) -> bool:
-    return char.isalpha() or char == "_"
-
-
-def is_keyword(string: str) -> bool:
-    if string == "break" or string == "default" or string == "func" \
-            or string == "case" or string == "defer" or string == "go" \
-            or string == "map" or string == "struct" or string == "chan" \
-            or string == "else" or string == "goto" or string == "package" \
-            or string == "switch" or string == "const" or string == "fallthrough" \
-            or string == "if" or string == "range" or string == "type" \
-            or string == "continue" or string == "for" or string == "import" \
-            or string == "return" or string == "var":  # Complete.
-        return True
-    return False
-
-
-def is_symbol(char: str) -> bool:
-    if char == "+" or char == "-" or char == "=" \
-            or char == ":" or char == "!" or char == "<" \
-            or char == ">" or char == "*" or char == "/" \
-            or char == "%" or char == "&" or char == "|" \
-            or char == "^" or char == "~" or char == "." \
-            or char == "," or char == "[" or char == "]" \
-            or char == "{" or char == "}" or char == ")" \
-            or char == "$" or char == "@" or char == "?":  # Incomplete.
-        return True
-    return False
+    def is_symbol(self, char: str) -> bool:
+        if char == "+" or char == "-" or char == "=" \
+                or char == ":" or char == "!" or char == "<" \
+                or char == ">" or char == "*" or char == "/" \
+                or char == "%" or char == "&" or char == "|" \
+                or char == "^" or char == "~" or char == "." \
+                or char == "," or char == "[" or char == "]" \
+                or char == "{" or char == "}" or char == ")" \
+                or char == "$" or char == "@" or char == "?":  # Incomplete.
+            return True
+        return False
 
 
 if __name__ == "__main__":
