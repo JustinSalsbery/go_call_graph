@@ -52,78 +52,78 @@ class Token:
 
 class Tokenizer():
     def __init__(self, file: TextIOWrapper):
-        self.line_number = 1
-        self.file = file
+        self.__line_number = 1
+        self.__file = file
 
     def get_token(self) -> Token:
-        peak = self.peak_next()
+        peak = self.__peak_next()
 
         while peak.isspace():  # Remove whitespace.
             if peak == "\n":
-                self.line_number += 1
+                self.__line_number += 1
 
-            self.file.read(1)
-            peak = self.peak_next()
+            self.__file.read(1)
+            peak = self.__peak_next()
 
-        if self.is_word(peak):
-            string = self.read_word()
-            if self.is_keyword(string):
-                return Token(TokenType.KEYWORD, string, self.line_number)
-            return Token(TokenType.WORD, string, self.line_number)
+        if self.__is_word(peak):
+            string = self.__read_word()
+            if self.__is_keyword(string):
+                return Token(TokenType.KEYWORD, string, self.__line_number)
+            return Token(TokenType.WORD, string, self.__line_number)
         elif peak.isdigit():
-            string = self.read_number()
-            return Token(TokenType.NUMBER, string, self.line_number)
+            string = self.__read_number()
+            return Token(TokenType.NUMBER, string, self.__line_number)
         elif peak == '(':
-            char = self.file.read(1)
-            return Token(TokenType.LPAREN, char, self.line_number)
+            char = self.__file.read(1)
+            return Token(TokenType.LPAREN, char, self.__line_number)
         elif peak == "'":
-            self.file.read(1)  # Remove first quote.
-            string, _ = self.read_until("'")
-            return Token(TokenType.QUOTE, string, self.line_number)
+            self.__file.read(1)  # Remove first quote.
+            string, _ = self.__read_until("'")
+            return Token(TokenType.QUOTE, string, self.__line_number)
         elif peak == '"':
-            self.file.read(1)  # Remove first quote.
-            string, _ = self.read_until('"')
-            return Token(TokenType.QUOTE, string, self.line_number)
+            self.__file.read(1)  # Remove first quote.
+            string, _ = self.__read_until('"')
+            return Token(TokenType.QUOTE, string, self.__line_number)
         elif peak == '`':
-            self.file.read(1)  # Remove first quote.
-            string, _ = self.read_until('`')
-            return Token(TokenType.QUOTE, string, self.line_number)
-        elif peak == "/" and self.peak_next(2) == "//":
-            self.read_until("\n")
+            self.__file.read(1)  # Remove first quote.
+            string, _ = self.__read_until('`')
+            return Token(TokenType.QUOTE, string, self.__line_number)
+        elif peak == "/" and self.__peak_next(2) == "//":
+            self.__read_until("\n")
             return self.get_token()  # Return next token.
-        elif peak == "/" and self.peak_next(2) == "/*":
-            self.read_until("*/")
+        elif peak == "/" and self.__peak_next(2) == "/*":
+            self.__read_until("*/")
             return self.get_token()  # Return next token.
-        elif self.is_symbol(peak):  # Must be after comment handling!
-            string = self.read_symbol()
-            return Token(TokenType.SYMBOL, string, self.line_number)
+        elif self.__is_symbol(peak):  # Must be after comment handling!
+            string = self.__read_symbol()
+            return Token(TokenType.SYMBOL, string, self.__line_number)
         elif peak == "":
-            return Token(TokenType.EOF, "", self.line_number)
+            return Token(TokenType.EOF, "", self.__line_number)
 
-        print(f"Error: Unexpected character {peak} in {self.file}.",
+        print(f"Error: Unexpected character {peak} in {self.__file}.",
               file=stderr)
         exit(EXIT_FAILURE)
 
     # Returns an empty string, "", if the end of the file is reached.
-    def peak_next(self, count: int = 1) -> str:
-        position = self.file.tell()
-        string = self.file.read(count)
+    def __peak_next(self, count: int = 1) -> str:
+        position = self.__file.tell()
+        string = self.__file.read(count)
 
-        self.file.seek(position)
+        self.__file.seek(position)
         return string
 
     # Returns (read, error).
-    def read_until(self, end: str) -> tuple[str, bool]:
+    def __read_until(self, end: str) -> tuple[str, bool]:
         escapes = 0
         escapes_in_ending = end.count("\\")
 
         string = ""
         while True:
-            char = self.file.read(1)
+            char = self.__file.read(1)
             if char == "":
                 break
             if char == "\n":
-                self.line_number += 1
+                self.__line_number += 1
 
             string += char
 
@@ -141,38 +141,38 @@ class Tokenizer():
 
         return (string, True)
 
-    def read_word(self) -> str:
+    def __read_word(self) -> str:
         string = ""
 
-        char = self.peak_next()
-        while self.is_word(char) or char.isdigit():
-            string += self.file.read(1)
-            char = self.peak_next()
+        char = self.__peak_next()
+        while self.__is_word(char) or char.isdigit():
+            string += self.__file.read(1)
+            char = self.__peak_next()
 
         return string
 
-    def read_number(self) -> str:
+    def __read_number(self) -> str:
         string = ""
 
-        char = self.peak_next()
+        char = self.__peak_next()
         while char.isdigit() or char == ".":
-            string += self.file.read(1)
-            char = self.peak_next()
+            string += self.__file.read(1)
+            char = self.__peak_next()
 
         return string
 
-    def read_symbol(self) -> str:
+    def __read_symbol(self) -> str:
         string = ""
 
-        while self.is_symbol(self.peak_next()):
-            string += self.file.read(1)
+        while self.__is_symbol(self.__peak_next()):
+            string += self.__file.read(1)
 
         return string
 
-    def is_word(self, char: str) -> bool:
+    def __is_word(self, char: str) -> bool:
         return char.isalpha() or char == "_"
 
-    def is_keyword(self, string: str) -> bool:
+    def __is_keyword(self, string: str) -> bool:
         if string == "break" or string == "default" or string == "func" \
                 or string == "case" or string == "defer" or string == "go" \
                 or string == "map" or string == "struct" or string == "chan" \
@@ -184,7 +184,7 @@ class Tokenizer():
             return True
         return False
 
-    def is_symbol(self, char: str) -> bool:
+    def __is_symbol(self, char: str) -> bool:
         if char == "+" or char == "-" or char == "=" \
                 or char == ":" or char == "!" or char == "<" \
                 or char == ">" or char == "*" or char == "/" \
