@@ -100,7 +100,7 @@ class Tokenizer():
         elif peak == "":
             return Token(TokenType.EOF, "", self.__line_number)
 
-        print(f"Error: Unexpected character {peak} in {self.__file}.",
+        print(f"Error: Unexpected character {peak} on line {self.__line_number} in {self.__file}.",
               file=stderr)
         exit(EXIT_FAILURE)
 
@@ -114,32 +114,34 @@ class Tokenizer():
 
     # Returns (read, error).
     def __read_until(self, end: str) -> tuple[str, bool]:
-        escapes = 0
-        escapes_in_ending = end.count("\\")
-
         string = ""
         while True:
             char = self.__file.read(1)
-            if char == "":
+            if char == "":  # EOF
                 break
+
             if char == "\n":
                 self.__line_number += 1
 
             string += char
 
-            if char == "\\":
-                escapes += 1  # TODO: Clean and verify.
-
-            # Repeatedly calling endswith() is inefficient. A deterministic finite automaton would
-            # be superior.
-
-            if string.endswith(end) and (escapes - escapes_in_ending) % 2 == 0:
+            # Repeatedly calling endswith() is inefficient.
+            if string.endswith(end) and not self.__is_escaped(string, end):
                 return (string, False)
 
-            if char != "\\":
-                escapes = 0  # Reset
-
         return (string, True)
+
+    def __is_escaped(self, string: str, end: str) -> bool:
+        count = 0
+
+        length = len(string) - len(end)
+        for i in range(length, 0, -1):
+            if string[i - 1] == "\\":
+                count += 1
+                continue
+            break
+
+        return (count % 2) == 1  # Escaped if an odd number of \.
 
     def __read_word(self) -> str:
         string = ""
@@ -192,7 +194,8 @@ class Tokenizer():
                 or char == "^" or char == "~" or char == "." \
                 or char == "," or char == "[" or char == "]" \
                 or char == "{" or char == "}" or char == ")" \
-                or char == "$" or char == "@" or char == "?":  # Incomplete.
+                or char == "$" or char == "@" or char == "?" \
+                or char == "#":  # Incomplete.
             return True
         return False
 
