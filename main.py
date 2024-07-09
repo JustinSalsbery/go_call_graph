@@ -36,10 +36,11 @@ def main() -> None:
 class TokenType(Enum):  # Minimal set.
     WORD = auto()  # Must start with a letter or _.
     KEYWORD = auto()  # WORD that is reserved by Golang.
-    SYMBOL = auto()  # Catch all with +, =, &, ), etc.
+    SYMBOL = auto()  # Catch all with +, =, &, #, etc.
     NUMBER = auto()  # Starts with a number.
     QUOTE = auto()  # Starts with a ', ", or `.
-    LPAREN = auto()  # ( -- note that ) is a SYMBOL.
+    LPAREN = auto()  # (
+    RPAREN = auto()  # )
     EOF = auto()  # End of file.
 
 
@@ -76,6 +77,9 @@ class Tokenizer():
         elif peak == '(':
             char = self.__file.read(1)
             return Token(TokenType.LPAREN, char, self.__line_number)
+        elif peak == ')':
+            char = self.__file.read(1)
+            return Token(TokenType.RPAREN, char, self.__line_number)
         elif peak == "'":
             self.__file.read(1)  # Remove first quote.
             string, _ = self.__read_until("'")
@@ -193,9 +197,8 @@ class Tokenizer():
                 or char == "%" or char == "&" or char == "|" \
                 or char == "^" or char == "~" or char == "." \
                 or char == "," or char == "[" or char == "]" \
-                or char == "{" or char == "}" or char == ")" \
-                or char == "$" or char == "@" or char == "?" \
-                or char == "#":  # Incomplete.
+                or char == "{" or char == "}" or char == "?" \
+                or char == "#" or char == "@" or char == "$":  # Incomplete.
             return True
         return False
 
