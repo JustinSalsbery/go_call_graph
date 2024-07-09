@@ -208,7 +208,7 @@ class Tokenizer():
                 or char == "^" or char == "~" or char == "." \
                 or char == "," or char == "[" or char == "]" \
                 or char == "#" or char == "@" or char == "$" \
-                or char == ";":  # Incomplete.
+                or char == ";" or char == "\\":  # Incomplete.
             return True
         return False
 
