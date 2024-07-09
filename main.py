@@ -13,36 +13,35 @@ EXIT_FAILURE = 1
 def main() -> None:
     paths = argv[1:]
 
-    for path in paths:
-        try:
+    with open("out.gv", "w") as output:
+        output.write("digraph call_graph {\n")
 
-            with open(path, "r") as file:
-                tokenizer = Tokenizer(file)
-                while True:
-                    token = tokenizer.get_token()
-                    if token.type == TokenType.EOF:
-                        break
+        for path in paths:
+            try:
+                with open(path, "r") as file:
+                    tokenizer = Tokenizer(file)
+                    parse(tokenizer, output)
+            except FileNotFoundError as e:
+                print(f"{e}")
 
-                    print(token)
-
-        except FileNotFoundError as e:
-            print(f"{e}")
+        output.write("}")
 
 # *****************************************************************************
 # *** TOKENS ******************************************************************
 # *****************************************************************************
 
 
-class TokenType(Enum):  # Minimal set.
+class TokenType(Enum):
     WORD = auto()  # Must start with a letter or _.
     KEYWORD = auto()  # WORD that is reserved by Golang.
-    SYMBOL = auto()  # Catch all with +, &, #, etc.
     NUMBER = auto()  # Starts with a number.
-    QUOTE = auto()  # Starts with a ', ", or `.
     LPAREN = auto()  # (
     RPAREN = auto()  # )
-    LBRACE = auto()  # { -- Note that } is a SYMBOL.
-    EQUAL = auto()  # = -- Note that +, -, :, etc are SYMBOLS.
+    LBRACE = auto()  # {
+    RBRACE = auto()  # }
+    EQUAL = auto()  # =
+    SYMBOL = auto()  # Catch all with +, &, #, etc.
+    QUOTE = auto()  # Starts with a ', ", or `.
     EOF = auto()  # End of file.
 
 
@@ -62,10 +61,10 @@ class Tokenizer():
         peak = self.__peak_next()
 
         while peak.isspace():  # Remove whitespace.
+            self.__file.read(1)
+
             if peak == "\n":
                 self.__line_number += 1
-
-            self.__file.read(1)
             peak = self.__peak_next()
 
         if self.__is_word(peak):
@@ -85,6 +84,9 @@ class Tokenizer():
         elif peak == "{":
             char = self.__file.read(1)
             return Token(TokenType.LBRACE, char, self.__line_number)
+        elif peak == "}":
+            char = self.__file.read(1)
+            return Token(TokenType.RBRACE, char, self.__line_number)
         elif peak == "=":
             char = self.__file.read(1)
             return Token(TokenType.EQUAL, char, self.__line_number)
@@ -205,8 +207,7 @@ class Tokenizer():
                 or char == "%" or char == "&" or char == "|" \
                 or char == "^" or char == "~" or char == "." \
                 or char == "," or char == "[" or char == "]" \
-                or char == "}" or char == "#" or char == "@" \
-                or char == "$":  # Incomplete.
+                or char == "#" or char == "@" or char == "$":  # Incomplete.
             return True
         return False
 
@@ -214,6 +215,63 @@ class Tokenizer():
 # *****************************************************************************
 # *** PARSE *******************************************************************
 # *****************************************************************************
+
+#
+# Three rules:
+#   1) After <func>, the function name is the first <word> if paren level AND
+#      brace level are 0.
+#   2) After <var>, ignore all tokens until '='.
+#   3) Otherwise, any word that is followed by '(' is a function. Global functions
+#      use the package name!
+#
+
+def parse(tokenizer: Tokenizer, output: TextIOWrapper) -> None:
+    paren_level = 0
+    brace_level = 0
+
+    in_var_decl = False
+    in_func_decl = False
+
+    pack_name = ""
+    func_name = None
+
+    prev_token = TokenType.EOF
+    func_called = set()
+    while True:
+        token = tokenizer.get_token()
+        if token.type == TokenType.EOF:
+            break
+
+        if token.type == TokenType.KEYWORD and token.body == "func":
+            in_func_decl = True
+        elif token.type == TokenType.KEYWORD and token.body == "var":
+            in_var_decl = True
+        elif token.type == TokenType.WORD:
+            if prev_token.type == TokenType.KEYWORD and prev_token.body == "package":
+                pack_name = token.body
+            elif in_func_decl and paren_level == 0 and brace_level == 0 and func_name is None:
+                func_name = token.body
+                output.write(f'\t"{pack_name}:{func_name}";\n')
+        elif token.type == TokenType.LPAREN:
+            paren_level += 1
+            if not in_func_decl and not in_var_decl and prev_token.type == TokenType.WORD and \
+                    f"{pack_name}:{func_name}:{prev_token.body}" not in func_called:
+                func_called.add(f"{pack_name}:{func_name}:{prev_token.body}")
+                output.write(f'\t"{pack_name}:{func_name}" -> '
+                             + f'"{pack_name}:{prev_token.body}";\n')
+        elif token.type == TokenType.RPAREN:
+            paren_level -= 1
+        elif token.type == TokenType.LBRACE:
+            brace_level += 1
+            in_func_decl = False
+        elif token.type == TokenType.RBRACE:
+            brace_level -= 1
+            if brace_level == 0:
+                func_name = None
+        elif token.type == TokenType.EQUAL:
+            in_var_decl = False
+
+        prev_token = token
 
 
 if __name__ == "__main__":
