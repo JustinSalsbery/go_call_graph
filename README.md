@@ -1,6 +1,6 @@
 # go_call_graph
 ### Author: Justin Salsbery
-Basic call graph for Golang using static analysis.
+Basic call graph for Golang using static analysis. Call graph output to "out.gz" in Graphviz dot format.
 ## Use:
 - python3 main.py <files.go>
 ## Example:
