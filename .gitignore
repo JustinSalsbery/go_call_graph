@@ -1,2 +1,8 @@
+
+# Ignore:
 *.gv
 *.png
+.*
+
+# Exceptions:
+!.gitignore
