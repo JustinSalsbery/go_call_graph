@@ -259,7 +259,7 @@ def parse(tokenizer: Tokenizer, output: TextIOWrapper) -> None:
                     f"{pack_name}:{func_name}:{prev_token.body}" not in func_called:
                 func_called.add(f"{pack_name}:{func_name}:{prev_token.body}")
                 output.write(f'\t"{pack_name}:{func_name}" -> '
-                             + f'"{pack_name}:{prev_token.body}";\n')
+                             + f'"{prev_token.body}";\n')
         elif token.type == TokenType.RPAREN:
             paren_level -= 1
         elif token.type == TokenType.LBRACE:
