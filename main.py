@@ -36,11 +36,13 @@ def main() -> None:
 class TokenType(Enum):  # Minimal set.
     WORD = auto()  # Must start with a letter or _.
     KEYWORD = auto()  # WORD that is reserved by Golang.
-    SYMBOL = auto()  # Catch all with +, =, &, #, etc.
+    SYMBOL = auto()  # Catch all with +, &, #, etc.
     NUMBER = auto()  # Starts with a number.
     QUOTE = auto()  # Starts with a ', ", or `.
     LPAREN = auto()  # (
     RPAREN = auto()  # )
+    LBRACE = auto()  # { -- Note that } is a SYMBOL.
+    EQUAL = auto()  # = -- Note that +, -, :, etc are SYMBOLS.
     EOF = auto()  # End of file.
 
 
@@ -80,6 +82,12 @@ class Tokenizer():
         elif peak == ')':
             char = self.__file.read(1)
             return Token(TokenType.RPAREN, char, self.__line_number)
+        elif peak == "{":
+            char = self.__file.read(1)
+            return Token(TokenType.LBRACE, char, self.__line_number)
+        elif peak == "=":
+            char = self.__file.read(1)
+            return Token(TokenType.EQUAL, char, self.__line_number)
         elif peak == "'":
             self.__file.read(1)  # Remove first quote.
             string, _ = self.__read_until("'")
@@ -191,16 +199,21 @@ class Tokenizer():
         return False
 
     def __is_symbol(self, char: str) -> bool:
-        if char == "+" or char == "-" or char == "=" \
-                or char == ":" or char == "!" or char == "<" \
+        if char == "+" or char == "-" or char == ":" \
+                or char == "?" or char == "!" or char == "<" \
                 or char == ">" or char == "*" or char == "/" \
                 or char == "%" or char == "&" or char == "|" \
                 or char == "^" or char == "~" or char == "." \
                 or char == "," or char == "[" or char == "]" \
-                or char == "{" or char == "}" or char == "?" \
-                or char == "#" or char == "@" or char == "$":  # Incomplete.
+                or char == "}" or char == "#" or char == "@" \
+                or char == "$":  # Incomplete.
             return True
         return False
+
+
+# *****************************************************************************
+# *** PARSE *******************************************************************
+# *****************************************************************************
 
 
 if __name__ == "__main__":
