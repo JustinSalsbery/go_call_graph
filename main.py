@@ -19,7 +19,7 @@ def main() -> None:
 
     filters = ""
     if args.filter:  # Optional filter
-        filters += " | { grep"
+        filters += " | { grep -w"
         for filter in args.filter:
             filters += f" -e {filter}"
         filters += " || true; }"
@@ -28,8 +28,16 @@ def main() -> None:
     print("digraph call_graph {", file=stdout)
     print("\tgraph [overlap=false];", file=stdout)
 
-    if args.source:  # Either source OR paths
-        print(filter_calls(args.source[0], filters), file=stdout)
+    if args.source:  # Must have either source OR paths.
+        args.source = args.source[0]
+        if not args.source.endswith(".gv") and not args.source.endswith(".dot"):
+            print(f"Error: incorrect file extension on {args.source}",
+                  file=stderr)
+            exit(EXIT_FAILURE)
+
+        # Remove the header and the ending from the file.
+        filters += " | { grep -Ev '[#{}=]'  || true; }"
+        print(filter_calls(args.source, filters), file=stdout)
     else:
         # We store the output in a temporary file such that the filtering
         # logic can be shared between source and paths.
@@ -39,6 +47,11 @@ def main() -> None:
             parser = Parser(output)
 
             for path in args.paths:
+                if not path.endswith(".go"):
+                    print(f"Error: incorrect file extension on {path}",
+                          file=stderr)
+                    continue
+
                 try:
                     with open(path, "r") as file:
                         tokenizer = Tokenizer(file)
@@ -52,8 +65,7 @@ def main() -> None:
 
 
 def filter_calls(path: str, filters: str) -> str:
-    status, output = getstatusoutput(  # Delete 1st, 2nd, 3rd, and last lines
-        f"sed '1d;2d;3d;$d' {path} 2>/dev/null {filters}")
+    status, output = getstatusoutput(f"cat {path} 2>/dev/null {filters}")
 
     if status != 0:
         print(f"Error: cannot open {path}", file=stderr)
