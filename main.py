@@ -1,31 +1,109 @@
 #! python3
 # author: Justin Salsbery
 
+from argparse import ArgumentParser, HelpFormatter, Namespace
 from io import TextIOWrapper
-from sys import argv, stderr
+from sys import argv, stdout, stderr
 from enum import Enum, auto
 from dataclasses import dataclass
+from subprocess import getstatusoutput
+from tempfile import NamedTemporaryFile
 
 
 EXIT_FAILURE = 1
+VERSION = "1.0.0"
 
 
 def main() -> None:
-    paths = argv[1:]
+    args = parse_args()
 
-    with open("out.gv", "w") as output:
-        output.write("digraph call_graph {\n")
-        parser = Parser(output)
+    filters = ""
+    if args.filter:  # Optional filter
+        filters += " | { grep"
+        for filter in args.filter:
+            filters += f" -e {filter}"
+        filters += " || true; }"
 
-        for path in paths:
-            try:
-                with open(path, "r") as file:
-                    tokenizer = Tokenizer(file)
-                    parser.parse(tokenizer)
-            except FileNotFoundError as e:
-                print(f"{e}")
+    print("# dot -Ksfdp -Tpng input.gv -o output.png", file=stdout)
+    print("digraph call_graph {", file=stdout)
+    print("\tgraph [overlap=false];", file=stdout)
 
-        output.write("}")
+    if args.source:  # Either source OR paths
+        print(filter_calls(args.source[0], filters), file=stdout)
+    else:
+        # We store the output in a temporary file such that the filtering
+        # logic can be shared between source and paths.
+
+        temp = NamedTemporaryFile().name
+        with open(temp, "w") as output:
+            parser = Parser(output)
+
+            for path in args.paths:
+                try:
+                    with open(path, "r") as file:
+                        tokenizer = Tokenizer(file)
+                        parser.parse(tokenizer)
+                except Exception as e:
+                    print(f"Error: cannot open {path}", file=stderr)
+
+        print(filter_calls(temp, filters), file=stdout)
+
+    print("}", file=stdout)
+
+
+def filter_calls(path: str, filters: str) -> str:
+    status, output = getstatusoutput(  # Delete 1st, 2nd, 3rd, and last lines
+        f"sed '1d;2d;3d;$d' {path} 2>/dev/null {filters}")
+
+    if status != 0:
+        print(f"Error: cannot open {path}", file=stderr)
+    return output
+
+
+# *****************************************************************************
+# *** MENU ********************************************************************
+# *****************************************************************************
+
+
+# Simplify error formatting.
+class CustomArgumentParser(ArgumentParser):
+    def error(self, message):
+        print("flow --help\n")
+        print("examples:")
+        print("\tflow --paths main.go > out.gv")
+        print('\tflow --paths $(find . -name "*.go") --filter GLOBAL main > out.gv')
+        print("\tflow --source out.gv --filter new > out.gv")
+        exit(EXIT_FAILURE)
+
+
+# Simplify help formatting.
+class CustomHelpFormatter(HelpFormatter):
+    def add_usage(self, usage, actions, groups, prefix=None):
+        pass
+
+    def _format_action_invocation(self, action):
+        if action.option_strings:
+            return ', '.join(action.option_strings)
+        return super()._format_action_invocation(action)
+
+
+def parse_args() -> Namespace:
+    parser = CustomArgumentParser(formatter_class=CustomHelpFormatter,
+                                  description="Generate a gv formatted call graph for Golang.")
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {VERSION}",
+                        help="show version number and exit")
+    group.add_argument("-s", "--source", nargs=1, type=str,
+                       help="read a gv formatted call graph from a file")
+    group.add_argument("-p", "--paths", nargs='+', type=str,
+                       help="construct a gv formatted call graph from 1 or more files")
+    parser.add_argument("-f", "--filter", nargs='+', type=str,
+                        help="filter call graph to 1 or more function names")
+
+    args = parser.parse_args()
+    return args
+
 
 # *****************************************************************************
 # *** TOKENS ******************************************************************
@@ -33,16 +111,16 @@ def main() -> None:
 
 
 class TokenType(Enum):
-    WORD = auto()  # Must start with a letter or _.
-    KEYWORD = auto()  # WORD that is reserved by Golang.
-    NUMBER = auto()  # Starts with a number.
+    WORD = auto()  # [a-zA-Z_]
+    KEYWORD = auto()  # Golang reserved WORD.
+    NUMBER = auto()  # [0-9]
     LPAREN = auto()  # (
     RPAREN = auto()  # )
     LBRACE = auto()  # {
     RBRACE = auto()  # }
     EQUAL = auto()  # =
-    SYMBOL = auto()  # Catch all with +, &, #, etc.
-    QUOTE = auto()  # Starts with a ', ", or `.
+    SYMBOL = auto()  # Catch all.
+    QUOTE = auto()  # ['"`]
     EOF = auto()  # End of file.
 
 

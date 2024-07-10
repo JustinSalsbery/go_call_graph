@@ -1,9 +1,12 @@
 # go_call_graph
 ### Author: Justin Salsbery
-Basic call graph for Golang using static analysis. Call graph output to "out.gz" in Graphviz dot format.
+Generate a gv formatted call graph for Golang.
+## Install/Uninstall:
+- make install
+- make uninstall
 ## Use:
-- python3 main.py <files.go>
-## Example:
-- python3 main.py main.go
-- python3 main.py $(find ../example -name "*.go" -not -path "*vendor*" -not -name "_test.go")
-    - cat out.gv | grep -v -e Println -e Printf > out.gv
+- flow {--paths [path] | --source path} (--filter [function])
+## Examples:
+- flow --paths main.go > out.gv
+- flow --paths $(find . -name "*.go") --filter GLOBAL main > out.gv
+- flow --source out.gv --filter new > out.gv
