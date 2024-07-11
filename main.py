@@ -26,7 +26,7 @@ def main() -> None:
 
     print("# dot -Ksfdp -Tpng input.gv -o output.png", file=stdout)
     print("digraph call_graph {", file=stdout)
-    print("\tgraph [overlap=false];", file=stdout)
+    print("\tgraph [splines=true overlap=false];", file=stdout)
 
     if args.source:  # Must have either source OR paths.
         args.source = args.source[0]
@@ -340,10 +340,16 @@ class Parser():
                 in_func_decl = True
             elif token.type == TokenType.KEYWORD and token.body == "var":
                 in_var_decl = True
-            elif token.type == TokenType.WORD and in_func_decl and paren_level == 0 \
-                    and brace_level == 0 and func_name is None:
-                func_name = token.body
-                self.__output.write(f'\t"{func_name}";\n')
+            elif token.type == TokenType.WORD:
+                if in_func_decl and paren_level == 0 and brace_level == 0 \
+                        and func_name is None:
+                    func_name = token.body
+                    self.__output.write(f'\t"{func_name}";\n')
+                elif prev_token.type == TokenType.KEYWORD and prev_token.body == "go" and \
+                        f"{func_name}:{prev_token.body}" not in self.__func_called:
+                    self.__func_called.add(f"{func_name}:{prev_token.body}")
+                    self.__output.write(f'\t"{func_name if func_name else "GLOBAL"}" -> ' +
+                                        f'"{prev_token.body}";\n')
             elif token.type == TokenType.LPAREN:
                 paren_level += 1
                 if not in_func_decl and not in_var_decl and prev_token.type == TokenType.WORD and \

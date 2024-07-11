@@ -3,8 +3,6 @@ INSTALL_DIR := /usr/local/bin
 
 SHELL := bash
 
-.SILENT:
-
 .PHONY: help options
 help options:
 	echo "options:"
@@ -14,9 +12,9 @@ help options:
 
 .PHONY: install
 install:
-	cp main.py ${INSTALL_DIR}/${INSTALL_NAME}
-	chmod +x ${INSTALL_DIR}/${INSTALL_NAME}
+	sudo cp main.py ${INSTALL_DIR}/${INSTALL_NAME}
+	sudo chmod +x ${INSTALL_DIR}/${INSTALL_NAME}
 
 .PHONY: uninstall
 uninstall:
-	rm -f ${INSTALL_DIR}/${INSTALL_NAME}
+	sudo rm -f ${INSTALL_DIR}/${INSTALL_NAME}
