@@ -1,2 +1,2 @@
 1. New features: —between A B (Read in .gv file, tokenize + parse into directed graph, track explored nodes for optimization.)
-2. Filter by pattern instead of full name match. 
+2. New feature: --match [A] (Filter by pattern instead of full name match. No -w in grep.)
